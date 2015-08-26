@@ -7,6 +7,7 @@
  ******************************************************************************/
 package soot.jimple.infoflow.sgp;
 
+import java.io.*;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.Iterator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,18 +36,102 @@ import soot.jimple.infoflow.data.AccessPath;
 public class SGPRawData {
 
     /*Local variable definitions*/
-    //private List<Set<Abstraction>> abstractionSetList;
+	
+	//Define a list of Sets f
+    private ArrayList<Set<Abstraction>> abstractionSetList;
 
     
     /*Basic constructor*/
     public SGPRawData(){
-	//this.abstractionSetList = new List YOU ARE HERE
+	this.abstractionSetList = new ArrayList<Set<Abstraction>>(); 
     } 
 
     
-    /*Add a new set of Abstractions*/
+    /*Add a new set of Abstractions to the abstractionSetList ArrayList*/
     public void addSet(Set<Abstraction> inputAbstrSet){
-	//code goes here
+    	abstractionSetList.add(inputAbstrSet);
+    }
+    
+    /*Get the set of Abstractions at a specified element of the ArrayList*/
+    public Set<Abstraction> getSet(int index){
+    	
+    	return abstractionSetList.get(index);
+    }
+    
+    /*Dump all collected Abstractions from all sets to file*/
+    public void toFile(String filename){
+    	
+    	//Iterators for iterating over each element of each set in the list
+    	//Iterator listIter = new
+
+    	//Declare output filestream based on input name
+    	FileOutputStream fout = null;
+    	
+    	//Try to open file for output, catch exception if unsuccessful
+    	try{
+    		fout = new FileOutputStream(filename);    		
+    	}catch(FileNotFoundException e){
+    		System.out.println("Error: Could not open "+filename+" for writing.");
+    		return;
+    	}
+    	
+    	//Instantiate PrintWriter to perform the output
+    	PrintWriter fwriter = new PrintWriter(fout);
+    	
+    	//Counters
+    	int i=0;
+    	int j=0;
+    	
+    	//Declare an iterator for accessing members of each Set<Abstraction>
+    	Iterator<Abstraction> setIter;
+    	
+    	fwriter.println("************************************************************");
+    	
+    	//Write contents of abstractionSetList to file
+    	//Iterate over each Set in the list
+    	for(Set<Abstraction> set : abstractionSetList){
+    		
+    		//Log info in file
+    		fwriter.println("Now printing contents of Set "+i);
+    		
+    		//If current set not null, instantiate the iterator
+    		if (set!=null){
+    			setIter = set.iterator();
+    		}else{
+    			fwriter.println("Set "+i+" was null, continuing...");
+    			fwriter.println("************************************************************");
+    			i++;
+    			continue;
+    		}
+    		
+    		
+    		//Reset set element counter
+    		j=0;
+    		
+    		//Iterate over each Abstraction in the given set and output
+    		while(setIter.hasNext()){
+    			
+    			//Output which element we're printing
+        		fwriter.println("Now printing Abstraction "+j+" from Set "+i);
+    			
+    			fwriter.println(setIter.next().toString());//IS THIS WHAT YOU WANT???    			
+    		
+    			//Incr set element counter
+    			j++;
+    		}
+    		
+    		fwriter.println("************************************************************");
+    		i++; //incr list counter
+    	}
+    	
+    	//Close filestream
+    	try{
+    		fout.close();
+    	}catch(IOException e){
+    		System.out.println("Error: Could not close "+filename);
+    		//Should throw exception up here? Best practice?
+    	}
+    	
     }
     
 
