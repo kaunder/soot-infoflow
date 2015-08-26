@@ -37,8 +37,10 @@ public class SGPRawData {
 
     /*Local variable definitions*/
 	
-	//Define a list of Sets f
+	//Define a list of Sets to contain the incoming sets of abstractions
     private ArrayList<Set<Abstraction>> abstractionSetList;
+    
+    
 
     
     /*Basic constructor*/
@@ -85,6 +87,9 @@ public class SGPRawData {
     	//Declare an iterator for accessing members of each Set<Abstraction>
     	Iterator<Abstraction> setIter;
     	
+    	//Declare a temp Abstraction object for output
+    	Abstraction temp;
+    	
     	fwriter.println("************************************************************");
     	
     	//Write contents of abstractionSetList to file
@@ -95,10 +100,10 @@ public class SGPRawData {
     		fwriter.println("Now printing contents of Set "+i);
     		
     		//If current set not null, instantiate the iterator
-    		if (set!=null){
+    		if (set!=null&&!set.isEmpty()){
     			setIter = set.iterator();
     		}else{
-    			fwriter.println("Set "+i+" was null, continuing...");
+    			fwriter.println("Set "+i+" was null or empty, continuing...");
     			fwriter.println("************************************************************");
     			i++;
     			continue;
@@ -108,14 +113,21 @@ public class SGPRawData {
     		//Reset set element counter
     		j=0;
     		
+    		//Flush printwriter
+    		fwriter.flush();
+    		
     		//Iterate over each Abstraction in the given set and output
     		while(setIter.hasNext()){
     			
     			//Output which element we're printing
-        		fwriter.println("Now printing Abstraction "+j+" from Set "+i);
+        		fwriter.println("Now printing Access Path of Abstraction "+j+" from Set "+i);
+        		temp = setIter.next();
+    			fwriter.println("Access Path:"+temp.getAccessPath().toString());//IS THIS WHAT YOU WANT???
+    			fwriter.println("Field Count:"+temp.getAccessPath().getFieldCount());//IS THIS WHAT YOU WANT???
+    			//fwriter.println("Base Type:"+temp.getAccessPath().getBaseType());//IS THIS WHAT YOU WANT???
+    			//fwriter.println("Plain Value:"+temp.getAccessPath().getPlainValue());//IS THIS WHAT YOU WANT???
+    			//What info do you want to output here??
     			
-    			fwriter.println(setIter.next().toString());//IS THIS WHAT YOU WANT???    			
-    		
     			//Incr set element counter
     			j++;
     		}
@@ -123,6 +135,12 @@ public class SGPRawData {
     		fwriter.println("************************************************************");
     		i++; //incr list counter
     	}
+    	
+    	fwriter.println("END OF OUTPUT");
+    	fwriter.println("************************************************************");
+    	
+    	//Flush print buffer
+    	fwriter.flush();
     	
     	//Close filestream
     	try{
