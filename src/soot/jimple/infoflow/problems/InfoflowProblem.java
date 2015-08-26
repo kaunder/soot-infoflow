@@ -80,7 +80,9 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 	private final IAliasingStrategy aliasingStrategy;
 	private final PropagationRuleManager propagationRules;
 	
-	private final SGPRawData abstractionData = new SGPRawData(); //KU - want this to be final??
+	private final SGPRawData abstractionData = new SGPRawData(); //KU - for output in computeTargetsInternal
+	private final SGPRawData absDataNotify = new SGPRawData();//KU - for output in notifyOutFlowHandlers
+	private final SGPRawData absDataAssign = new SGPRawData();//KU - for output in createNewTaintOnAssignment
 	
 	protected final MyConcurrentHashMap<AbstractionAtSink, Abstraction> results =
 			new MyConcurrentHashMap<AbstractionAtSink, Abstraction>();
@@ -162,6 +164,7 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 						&& !outgoing.isEmpty())
 					outgoing = taintPropagationHandler.notifyFlowOut(stmt, d1, incoming, outgoing,
 								interproceduralCFG(), functionType);
+				absDataNotify.addSet(outgoing);//KU - add outgoing Abstraction set
 				return outgoing;
 			}
 			
@@ -273,9 +276,10 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 					// called functions since they are not visible in the caller
 					// anyway
 					if ((d1 == null || d1.getAccessPath().isEmpty())
-							&& !(leftValue instanceof FieldRef))
+							&& !(leftValue instanceof FieldRef)){
+						absDataAssign.addSet(Collections.singleton(newSource));//KU - does this make sense for singleton??
 						return Collections.singleton(newSource);
-													
+					}	
 					if (newSource.getAccessPath().isEmpty())
 						addLeftValue = true;
 				}
@@ -301,9 +305,10 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 
 							// If the right side references a NULL field, we kill the taint
 							if (rightRef instanceof InstanceFieldRef
-									&& ((InstanceFieldRef) rightRef).getBase().getType() instanceof NullType)
+									&& ((InstanceFieldRef) rightRef).getBase().getType() instanceof NullType){
+								//absDataAssign.addSet(null);//KU - don't add the null set
 								return null;
-							
+							}
 							// Check for aliasing
 							mappedAP = aliasing.mayAlias(newSource.getAccessPath(), rightRef);
 							
@@ -376,20 +381,23 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 				}
 				
 				// If we have nothing to add, we quit
-				if (!addLeftValue)
+				if (!addLeftValue){
+					//absDataAssign.addSet(null);//KU - don't add the null set
 					return null;
-				
+				}
 				// Do not propagate non-active primitive taints
 				if (!newSource.isAbstractionActive()
 						&& (assignStmt.getLeftOp().getType() instanceof PrimType
-								|| TypeUtils.isStringType(assignStmt.getLeftOp().getType())))
+								|| TypeUtils.isStringType(assignStmt.getLeftOp().getType()))){
+					absDataAssign.addSet(Collections.singleton(newSource));//KU - does this make sense for singleton??
 					return Collections.singleton(newSource);
-				
+				}
 				// If the right side is a typecast, it must be compatible,
 				// or this path is not realizable
 				if (rightValue instanceof CastExpr) {
 					CastExpr ce = (CastExpr) rightValue;
 					if (!manager.getTypeUtils().checkCast(newSource.getAccessPath(), ce.getCastType()))
+						//KU - don't add the empty set to custom list of Abstraction sets
 						return Collections.emptySet();
 				}
 				// Special handling for certain operations
@@ -400,14 +408,20 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 					assert leftValue instanceof Local;
 					
 					// Is the length tainted?
-					if (newSource.getAccessPath().getArrayTaintType() == ArrayTaintType.Contents)
+					if (newSource.getAccessPath().getArrayTaintType() == ArrayTaintType.Contents){
+						absDataAssign.addSet(Collections.singleton(newSource));//KU - does this make sense for singleton??
 						return Collections.singleton(newSource);
-					
+					}
+						
 					// Taint the array length
 					AccessPath ap = new AccessPath(leftValue, null, IntType.v(),
 							(Type[]) null, true, false, true, ArrayTaintType.ContentsAndLength);
 					Abstraction lenAbs = newSource.deriveNewAbstraction(ap, assignStmt);
-					return new TwoElementSet<Abstraction>(newSource, lenAbs);
+					
+					//return new TwoElementSet<Abstraction>(newSource, lenAbs); KU - original return stmt
+					TwoElementSet<Abstraction> twoelem = new TwoElementSet<Abstraction>(newSource, lenAbs);
+					absDataAssign.addSet(twoelem); //KU 
+					return twoelem;
 				}
 				
 				// Do we taint the contents of an array? If we do not differentiate,
@@ -431,6 +445,7 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 						interproceduralCFG().getMethodOf(assignStmt), targetType,
 						arrayTaintType);
 				res.add(newSource);
+				absDataAssign.addSet(res);
 				return res;
 			}
 
@@ -1156,7 +1171,9 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
     public Set<AbstractionAtSink> getResults(){
     	
     	//KU - output collected Abstraction results to file **PROOF OF CONCEPT ONLY - MAKE APP SENSITIVE FILENAME LATER
-    	abstractionData.toFile("/home/katie/School/RESEARCH/FlowDroid/abstraction_data.txt"); 
+    	abstractionData.toFile("/home/katie/School/RESEARCH/FlowDroid/absdata_computeTargetsInternal.txt");
+    	absDataNotify.toFile("/home/katie/School/RESEARCH/FlowDroid/absdata_notifyOutFlowHandler.txt");
+    	//absDataAssign.toFile("/home/katie/School/RESEARCH/FlowDroid/absdata_createNewTaintOnAssignment.txt");
     	
    		return this.results.keySet();
 	}
