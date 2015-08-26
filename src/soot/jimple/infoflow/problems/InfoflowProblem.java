@@ -7,12 +7,16 @@
  * 
  * Contributors: Christian Fritz, Steven Arzt, Siegfried Rasthofer, Eric
  * Bodden, and others.
+ *
+ * Edited by Katie Underwood August 2015
+ *
  ******************************************************************************/
 package soot.jimple.infoflow.problems;
 
 import heros.FlowFunction;
 import heros.FlowFunctions;
 import heros.TwoElementSet;
+import heros.flowfunc.Identity;
 import heros.flowfunc.KillAll;
 
 import java.util.Collection;
@@ -38,6 +42,7 @@ import soot.jimple.CastExpr;
 import soot.jimple.Constant;
 import soot.jimple.DefinitionStmt;
 import soot.jimple.FieldRef;
+import soot.jimple.IdentityStmt;
 import soot.jimple.IfStmt;
 import soot.jimple.InstanceFieldRef;
 import soot.jimple.InstanceInvokeExpr;
@@ -50,6 +55,7 @@ import soot.jimple.ReturnStmt;
 import soot.jimple.StaticFieldRef;
 import soot.jimple.Stmt;
 import soot.jimple.TableSwitchStmt;
+import soot.jimple.ThrowStmt;
 import soot.jimple.infoflow.InfoflowManager;
 import soot.jimple.infoflow.aliasing.Aliasing;
 import soot.jimple.infoflow.aliasing.IAliasingStrategy;
@@ -64,20 +70,28 @@ import soot.jimple.infoflow.solver.functions.SolverCallFlowFunction;
 import soot.jimple.infoflow.solver.functions.SolverCallToReturnFlowFunction;
 import soot.jimple.infoflow.solver.functions.SolverNormalFlowFunction;
 import soot.jimple.infoflow.solver.functions.SolverReturnFlowFunction;
+import soot.jimple.infoflow.source.SourceInfo;
 import soot.jimple.infoflow.util.BaseSelector;
 import soot.jimple.infoflow.util.ByReferenceBoolean;
 import soot.jimple.infoflow.util.SystemClassHandler;
 import soot.jimple.infoflow.util.TypeUtils;
 
+import soot.jimple.infoflow.sgp.SGPRawData; //KU
+
 public class InfoflowProblem extends AbstractInfoflowProblem {
-	
+
+    private SGPRawData allAbstractions; //KU - define object to store all Abstraction sets Q:MAKE FINAL???
+    
 	private final Aliasing aliasing;
 	private final IAliasingStrategy aliasingStrategy;
 	private final PropagationRuleManager propagationRules;
 	
 	protected final MyConcurrentHashMap<AbstractionAtSink, Abstraction> results =
 			new MyConcurrentHashMap<AbstractionAtSink, Abstraction>();
-	
+
+
+    //************************************************************************************************************
+    //Public constructor for InfoflowProblem
 	public InfoflowProblem(InfoflowManager manager,
 			IAliasingStrategy aliasingStrategy,
 			Abstraction zeroValue) {
@@ -90,12 +104,22 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 		this.aliasing = new Aliasing(aliasingStrategy, manager.getICFG());
 		
 		this.propagationRules = new PropagationRuleManager(manager, aliasing, createZeroValue());
-	}
-	
+
+		this.allAbstractions = new SGPRawData(); //KU instantiate allAbstractions
+		
+	}//end InfoflowProblem public constructor
+    //************************************************************************************************************
+
+
+
+    //************************************************************************************************************
 	@Override
 	public FlowFunctions<Unit, Abstraction, SootMethod> createFlowFunctionsFactory() {
 		return new FlowFunctions<Unit, Abstraction, SootMethod>() {
-			
+
+
+
+		    //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 			/**
 			 * Abstract base class for all normal flow functions. This is to
 			 * share code that e.g. notifies the taint handlers between the
@@ -105,12 +129,13 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 			 */
 			abstract class NotifyingNormalFlowFunction extends SolverNormalFlowFunction {
 				
-				protected final Stmt stmt;
+				private final Stmt stmt;
 				
 				public NotifyingNormalFlowFunction(Stmt stmt) {
 					this.stmt = stmt;
 				}
-				
+
+			        //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				@Override
 				public Set<Abstraction> computeTargets(Abstraction d1, Abstraction source) {
 					if (manager.getConfig().getStopAfterFirstFlow() && !results.isEmpty())
@@ -126,11 +151,17 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 					return notifyOutFlowHandlers(stmt, d1, source, res,
 							FlowFunctionType.NormalFlowFunction);
 				}
+			        //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			        
 				
 				public abstract Set<Abstraction> computeTargetsInternal(Abstraction d1, Abstraction source);
 
-			}
-			
+			}//end of NotifiyingNormalFlowFunction extends SolverNormalFlowFunction
+		    //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+
+
+		    
+		    //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&	
 			/**
 			 * Notifies the outbound flow handlers, if any, about the computed
 			 * result abstractions for the current flow function
@@ -155,7 +186,12 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 								interproceduralCFG(), functionType);
 				return outgoing;
 			}
-			
+		    //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+
+
+		    
+
+		    //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 			/**
 			 * Taints the left side of the given assignment
 			 * @param assignStmt The source statement from which the taint originated
@@ -172,7 +208,7 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 					boolean cutFirstField,
 					SootMethod method,
 					Type targetType,
-					ArrayTaintType arrayTaintType) {
+					 ArrayTaintType arrayTaintType) {
 				final Value leftValue = assignStmt.getLeftOp();
 				final Value rightValue = assignStmt.getRightOp();
 				
@@ -191,9 +227,14 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 					
 					// If this is an unrealizable typecast, drop the abstraction
 					if (rightValue instanceof CastExpr) {
-						// For casts, we must update our typing information
+						// If we cast java.lang.Object to an array type,
+						// we must update our typing information
 						CastExpr cast = (CastExpr) assignStmt.getRightOp();
-						targetType = cast.getType();
+						if (cast.getType() instanceof ArrayType && !(targetType instanceof ArrayType)) {
+							// If the cast was realizable, we can assume that we had the
+							// type to which we cast.
+							targetType = cast.getType();
+						}
 					}
 					// Special type handling for certain operations
 					else if (rightValue instanceof InstanceOfExpr)
@@ -201,7 +242,6 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 								BooleanType.v(), (Type[]) null, true,
 								ArrayTaintType.ContentsAndLength), assignStmt);
 					else if (rightValue instanceof NewArrayExpr) {
-						assert manager.getConfig().getEnableArraySizeTainting();
 						arrayTaintType = ArrayTaintType.Length;
 						targetType = null;
 					}
@@ -222,8 +262,12 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 				if (aliasing.canHaveAliases(assignStmt, leftValue, newAbs))
 					aliasing.computeAliases(d1, assignStmt, leftValue, taintSet,
 							method, newAbs);
-			}
-			
+			}//end of addTaintViaStmt
+		    //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+
+
+
+		    //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 			/**
 			 * Checks whether the given call has at least one valid target,
 			 * i.e. a callee with a body.
@@ -238,240 +282,330 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 						return true;
 				return false;
 			}
-			
-			private Set<Abstraction> createNewTaintOnAssignment(
-					final AssignStmt assignStmt,
-					final Value[] rightVals,
-					Abstraction d1,
-					final Abstraction newSource) {
-				final Value leftValue = assignStmt.getLeftOp();
-				final Value rightValue = assignStmt.getRightOp();
-				boolean addLeftValue = false;
-				
-				// If we have an implicit flow, but the assigned
-				// local is never read outside the condition, we do
-				// not need to taint it.
-				boolean implicitTaint = newSource.getTopPostdominator() != null
-						&& newSource.getTopPostdominator().getUnit() != null;
-				implicitTaint |= newSource.getAccessPath().isEmpty();
-											
-				// If we have a non-empty postdominator stack, we taint
-				// every assignment target
-				if (implicitTaint) {
-					assert manager.getConfig().getEnableImplicitFlows();
-					
-					// We can skip over all local assignments inside conditionally-
-					// called functions since they are not visible in the caller
-					// anyway
-					if ((d1 == null || d1.getAccessPath().isEmpty())
-							&& !(leftValue instanceof FieldRef))
-						return Collections.singleton(newSource);
-													
-					if (newSource.getAccessPath().isEmpty())
-						addLeftValue = true;
-				}
-				
-				// If we have a = x with the taint "x" being inactive,
-				// we must not taint the left side. We can only taint
-				// the left side if the tainted value is some "x.y".
-				boolean aliasOverwritten = !addLeftValue
-						&& !newSource.isAbstractionActive()
-						&& Aliasing.baseMatchesStrict(rightValue, newSource)
-						&& rightValue.getType() instanceof RefType
-						&& !newSource.dependsOnCutAP();
-				
-				ArrayTaintType arrayTaintType = newSource.getAccessPath().getArrayTaintType();
-				boolean cutFirstField = false;
-				AccessPath mappedAP = newSource.getAccessPath();
-				Type targetType = null;
-				if (!addLeftValue && !aliasOverwritten) {
-					for (Value rightVal : rightVals) {
-						if (rightVal instanceof FieldRef) {
-							// Get the field reference
-							FieldRef rightRef = (FieldRef) rightVal;
+		    //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 
-							// If the right side references a NULL field, we kill the taint
-							if (rightRef instanceof InstanceFieldRef
-									&& ((InstanceFieldRef) rightRef).getBase().getType() instanceof NullType)
-								return null;
-							
-							// Check for aliasing
-							mappedAP = aliasing.mayAlias(newSource.getAccessPath(), rightRef);
-							
-							// check if static variable is tainted (same name, same class)
-							//y = X.f && X.f tainted --> y, X.f tainted
-							if (rightVal instanceof StaticFieldRef) {
-								if (manager.getConfig().getEnableStaticFieldTracking() && mappedAP != null) {
-									addLeftValue = true;
-									cutFirstField = true;
-								}
-							}
-							// check for field references
-							//y = x.f && x tainted --> y, x tainted
-							//y = x.f && x.f tainted --> y, x tainted
-							else if (rightVal instanceof InstanceFieldRef) {								
-								Local rightBase = (Local) ((InstanceFieldRef) rightRef).getBase();
-								Local sourceBase = newSource.getAccessPath().getPlainValue();
-								final SootField rightField = rightRef.getField();
-								
-								// We need to compare the access path on the right side
-								// with the start of the given one
-								if (mappedAP != null) {
-									addLeftValue = true;
-									cutFirstField = (mappedAP.getFieldCount() > 0
-											&& mappedAP.getFirstField() == rightField);
-								}
-								else if (aliasing.mayAlias(rightBase, sourceBase)
-										&& newSource.getAccessPath().getFieldCount() == 0
-										&& newSource.getAccessPath().getTaintSubFields()) {
-									addLeftValue = true;
-									targetType = rightField.getType();
-								}
-							}
-						}
-						// indirect taint propagation:
-						// if rightvalue is local and source is instancefield of this local:
-						// y = x && x.f tainted --> y.f, x.f tainted
-						// y.g = x && x.f tainted --> y.g.f, x.f tainted
-						else if (rightVal instanceof Local && newSource.getAccessPath().isInstanceFieldRef()) {
-							Local base = newSource.getAccessPath().getPlainValue();
-							if (aliasing.mayAlias(rightVal, base)) {
-								addLeftValue = true;
-								targetType = newSource.getAccessPath().getBaseType();
-							}
-						}
-						//y = x[i] && x tainted -> x, y tainted
-						else if (rightVal instanceof ArrayRef) {
-							Local rightBase = (Local) ((ArrayRef) rightVal).getBase();
-							if (newSource.getAccessPath().getArrayTaintType() != ArrayTaintType.Length
-									&& aliasing.mayAlias(rightBase, newSource.getAccessPath().getPlainValue())) {											
-								addLeftValue = true;
-								targetType = newSource.getAccessPath().getBaseType();
-								assert targetType instanceof ArrayType;
-							}
-						}
-						// generic case, is true for Locals, ArrayRefs that are equal etc..
-						//y = x && x tainted --> y, x tainted
-						else if (aliasing.mayAlias(rightVal, newSource.getAccessPath().getPlainValue())) {
-							if (manager.getConfig().getEnableArraySizeTainting()
-									|| !(rightVal instanceof NewArrayExpr)) {
-								addLeftValue = true;
-								targetType = newSource.getAccessPath().getBaseType();
-							}
-						}
-						
-						// One reason to taint the left side is enough
-						if (addLeftValue)
-							break;
-					}
-				}
-				
-				// If we have nothing to add, we quit
-				if (!addLeftValue)
-					return null;
-				
-				// Do not propagate non-active primitive taints
-				if (!newSource.isAbstractionActive()
-						&& (assignStmt.getLeftOp().getType() instanceof PrimType
-								|| TypeUtils.isStringType(assignStmt.getLeftOp().getType())))
-					return Collections.singleton(newSource);
-				
-				// If the right side is a typecast, it must be compatible,
-				// or this path is not realizable
-				if (rightValue instanceof CastExpr) {
-					CastExpr ce = (CastExpr) rightValue;
-					if (!manager.getTypeUtils().checkCast(newSource.getAccessPath(), ce.getCastType()))
-						return Collections.emptySet();
-				}
-				// Special handling for certain operations
-				else if (rightValue instanceof LengthExpr) {
-					// Check that we really have an array
-					assert newSource.getAccessPath().isEmpty()
-							|| newSource.getAccessPath().getBaseType() instanceof ArrayType;
-					assert leftValue instanceof Local;
-					
-					// Is the length tainted?
-					if (newSource.getAccessPath().getArrayTaintType() == ArrayTaintType.Contents)
-						return Collections.singleton(newSource);
-					
-					// Taint the array length
-					AccessPath ap = new AccessPath(leftValue, null, IntType.v(),
-							(Type[]) null, true, false, true, ArrayTaintType.ContentsAndLength);
-					Abstraction lenAbs = newSource.deriveNewAbstraction(ap, assignStmt);
-					return new TwoElementSet<Abstraction>(newSource, lenAbs);
-				}
-				
-				// Do we taint the contents of an array? If we do not differentiate,
-				// we do not set any special type.
-				if (leftValue instanceof ArrayRef
-						&& manager.getConfig().getEnableArraySizeTainting())
-					arrayTaintType = ArrayTaintType.Contents;
-				
-				// If this is a sink, we need to report the finding
-				if (manager.getSourceSinkManager() != null
-						&& manager.getSourceSinkManager().isSink(assignStmt, interproceduralCFG(),
-								newSource.getAccessPath())
-						&& newSource.isAbstractionActive()
-						&& newSource.getAccessPath().isEmpty())
-					addResult(new AbstractionAtSink(newSource, assignStmt));
-				
-				Set<Abstraction> res = new HashSet<Abstraction>();
-				Abstraction targetAB = mappedAP.equals(newSource.getAccessPath())
-						? newSource : newSource.deriveNewAbstraction(mappedAP, null);							
-				addTaintViaStmt(d1, assignStmt, targetAB, res, cutFirstField,
-						interproceduralCFG().getMethodOf(assignStmt), targetType,
-						arrayTaintType);
-				res.add(newSource);
-				return res;
-			}
 
+
+		    
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
 			@Override
 			public FlowFunction<Abstraction> getNormalFlowFunction(final Unit src, final Unit dest) {
 				// Get the call site
 				if (!(src instanceof Stmt))
 					return KillAll.v();
+				final Stmt stmt = (Stmt) src;
 				
-				return new NotifyingNormalFlowFunction((Stmt) src) {
+				// If we compute flows on parameters, we create the initial
+				// flow fact here
+				if (src instanceof IdentityStmt) {
+					final IdentityStmt is = (IdentityStmt) src;
 					
-					@Override
-					public Set<Abstraction> computeTargetsInternal(Abstraction d1, Abstraction source) {
-						// Check whether we must activate a taint
-						final Abstraction newSource;
-						if (!source.isAbstractionActive() && src == source.getActivationUnit())
-							newSource = source.getActiveCopy();
-						else
-							newSource = source;
-
-						// Apply the propagation rules
-						ByReferenceBoolean killSource = new ByReferenceBoolean();
-						ByReferenceBoolean killAll = new ByReferenceBoolean();
-						Set<Abstraction> res = propagationRules.applyNormalFlowFunction(d1, newSource, stmt,
-								killSource, killAll);
-						if (killAll.value)
-							return Collections.<Abstraction>emptySet();
+					return new NotifyingNormalFlowFunction(is) {
 						
-						// Propagate over an assignment
-						if (src instanceof AssignStmt) {
-							final AssignStmt assignStmt = (AssignStmt) src;
-							final Value right = assignStmt.getRightOp();
-							final Value[] rightVals = BaseSelector.selectBaseList(right, true);
+						@Override
+						public Set<Abstraction> computeTargetsInternal(Abstraction d1, Abstraction source) {
+							// Compute the sources
+							Set<Abstraction> res = propagationRules.applyNormalFlowFunction(d1, source, is, null);
+
+							return res == null || res.isEmpty() ? Collections.<Abstraction>emptySet() : res;
+							KU YOU ARE HERE
+						}
+					};
+
+				}
+
+				// taint is propagated with assignStmt
+				else if (src instanceof AssignStmt) {
+					final AssignStmt assignStmt = (AssignStmt) src;
+					final Value right = assignStmt.getRightOp();
+					
+					final Value leftValue = assignStmt.getLeftOp();
+					final Value[] rightVals = BaseSelector.selectBaseList(right, true);
+										
+					return new NotifyingNormalFlowFunction(assignStmt) {
+						
+						@Override
+						public Set<Abstraction> computeTargetsInternal(Abstraction d1, Abstraction source) {
+							// Make sure nothing all wonky is going on here
+							assert source.getAccessPath().isEmpty()
+									|| source.getTopPostdominator() == null;
+							assert source.getTopPostdominator() == null
+									|| interproceduralCFG().getMethodOf(src) == source.getTopPostdominator().getMethod()
+									|| interproceduralCFG().getMethodOf(src).getActiveBody().getUnits().contains
+											(source.getTopPostdominator().getUnit());
+							
+                            // on NormalFlow taint cannot be created
+							ByReferenceBoolean killAll = new ByReferenceBoolean();
+							Set<Abstraction> res = propagationRules.applyNormalFlowFunction(d1, source, stmt, killAll);
+							if (killAll.value)
+								return Collections.<Abstraction>emptySet();
+							
+							// Check whether we must activate a taint
+							final Abstraction newSource;
+							if (!source.isAbstractionActive() && src == source.getActivationUnit())
+								newSource = source.getActiveCopy();
+							else
+								newSource = source;
 							
 							// Create the new taints that may be created by this assignment
-							Set<Abstraction> resAssign = createNewTaintOnAssignment(assignStmt,
+							Set<Abstraction> resAssign = createNewTaintOnAssignment(src, assignStmt,
 									rightVals, d1, newSource);
-							if (resAssign != null && !resAssign.isEmpty()) {
-								if (res != null) {
-									res.addAll(resAssign);
-									return res;
-								}
-								else
-									res = resAssign;
+							if (resAssign != null) {
+								res.addAll(resAssign);
+								return res;
 							}
-						}
-						// Propagate over a return statement
-						else if (src instanceof ReturnStmt) {
-							final ReturnStmt returnStmt = (ReturnStmt) src;
 							
+							// If we have propagated taint, we have returned from this method by now
+							
+							//if leftvalue contains the tainted value -> it is overwritten - remove taint:
+							//but not for arrayRefs:
+							// x[i] = y --> taint is preserved since we do not distinguish between elements of collections 
+							//because we do not use a MUST-Alias analysis, we cannot delete aliases of taints 
+							if (assignStmt.getLeftOp() instanceof ArrayRef)
+								return Collections.singleton(newSource);
+							
+							if(newSource.getAccessPath().isInstanceFieldRef()) {
+								// Data Propagation: x.f = y && x.f tainted --> no taint propagated
+								// Alias Propagation: Only kill the alias if we directly overwrite it,
+								// otherwise it might just be the creation of yet another alias
+								if (leftValue instanceof InstanceFieldRef) {
+									InstanceFieldRef leftRef = (InstanceFieldRef) leftValue;
+									boolean baseAliases = source.isAbstractionActive()
+											&& aliasing.mustAlias((Local) leftRef.getBase(),
+													newSource.getAccessPath().getPlainValue(), assignStmt);
+									if (baseAliases
+											|| leftRef.getBase() == newSource.getAccessPath().getPlainValue()) {
+										if (aliasing.mustAlias(leftRef.getField(), newSource.getAccessPath().getFirstField())) {
+											return Collections.emptySet();
+										}
+									}
+								}
+								// x = y && x.f tainted -> no taint propagated. This must only check the precise
+								// variable which gets replaced, but not any potential strong aliases
+								else if (leftValue instanceof Local){
+									if (leftValue == newSource.getAccessPath().getPlainValue()) {
+										return Collections.emptySet();
+									}
+								}	
+							}
+							//X.f = y && X.f tainted -> no taint propagated. Kills are allowed even if
+							// static field tracking is disabled
+							else if (newSource.getAccessPath().isStaticFieldRef()){
+								if(leftValue instanceof StaticFieldRef
+										&& aliasing.mustAlias(((StaticFieldRef)leftValue).getField(),
+												newSource.getAccessPath().getFirstField())){
+									return Collections.emptySet();
+								}
+								
+							}
+							//when the fields of an object are tainted, but the base object is overwritten
+							// then the fields should not be tainted any more
+							//x = y && x.f tainted -> no taint propagated
+							else if (newSource.getAccessPath().isLocal()
+									&& leftValue instanceof Local
+									&& leftValue == newSource.getAccessPath().getPlainValue()){
+								return Collections.emptySet();
+							}
+														
+							//nothing applies: z = y && x tainted -> taint is preserved
+							return Collections.singleton(newSource);
+						}//end of computeTargetsInternal
+
+						private Set<Abstraction> createNewTaintOnAssignment(final Unit src,
+								final AssignStmt assignStmt,
+								final Value[] rightVals,
+								Abstraction d1,
+								final Abstraction newSource) {
+							final Value leftValue = assignStmt.getLeftOp();
+							final Value rightValue = assignStmt.getRightOp();
+							boolean addLeftValue = false;
+							
+							// If we have an implicit flow, but the assigned
+							// local is never read outside the condition, we do
+							// not need to taint it.
+							boolean implicitTaint = newSource.getTopPostdominator() != null
+									&& newSource.getTopPostdominator().getUnit() != null;
+							implicitTaint |= newSource.getAccessPath().isEmpty();
+							
+							// If we have a non-empty postdominator stack, we taint
+							// every assignment target
+							if (implicitTaint) {
+								assert manager.getConfig().getEnableImplicitFlows();
+								
+								// We can skip over all local assignments inside conditionally-
+								// called functions since they are not visible in the caller
+								// anyway
+								if ((d1 == null || d1.getAccessPath().isEmpty())
+										&& !(leftValue instanceof FieldRef))
+									return Collections.singleton(newSource);
+																
+								if (newSource.getAccessPath().isEmpty())
+									addLeftValue = true;
+							}
+							
+							// If we have a = x with the taint "x" being inactive,
+							// we must not taint the left side. We can only taint
+							// the left side if the tainted value is some "x.y".
+							boolean aliasOverwritten = !addLeftValue
+									&& !newSource.isAbstractionActive()
+									&& Aliasing.baseMatchesStrict(rightValue, newSource)
+									&& rightValue.getType() instanceof RefType
+									&& !newSource.dependsOnCutAP();
+							
+							ArrayTaintType arrayTaintType = newSource.getAccessPath().getArrayTaintType();
+							boolean cutFirstField = false;
+							AccessPath mappedAP = newSource.getAccessPath();
+							Type targetType = null;
+							if (!addLeftValue && !aliasOverwritten) {
+								for (Value rightVal : rightVals) {
+									if (rightVal instanceof FieldRef) {
+										// Get the field reference
+										FieldRef rightRef = (FieldRef) rightVal;
+
+										// If the right side references a NULL field, we kill the taint
+										if (rightRef instanceof InstanceFieldRef
+												&& ((InstanceFieldRef) rightRef).getBase().getType() instanceof NullType)
+											return null;
+										
+										// Check for aliasing
+										mappedAP = aliasing.mayAlias(newSource.getAccessPath(), rightRef);
+										
+										// check if static variable is tainted (same name, same class)
+										//y = X.f && X.f tainted --> y, X.f tainted
+										if (rightVal instanceof StaticFieldRef) {
+											if (manager.getConfig().getEnableStaticFieldTracking() && mappedAP != null) {
+												addLeftValue = true;
+												cutFirstField = true;
+											}
+										}
+										// check for field references
+										//y = x.f && x tainted --> y, x tainted
+										//y = x.f && x.f tainted --> y, x tainted
+										else if (rightVal instanceof InstanceFieldRef) {								
+											Local rightBase = (Local) ((InstanceFieldRef) rightRef).getBase();
+											Local sourceBase = newSource.getAccessPath().getPlainValue();
+											final SootField rightField = rightRef.getField();
+											
+											// We need to compare the access path on the right side
+											// with the start of the given one
+											if (mappedAP != null) {
+												addLeftValue = true;
+												cutFirstField = (mappedAP.getFieldCount() > 0
+														&& mappedAP.getFirstField() == rightField);
+											}
+											else if (aliasing.mayAlias(rightBase, sourceBase)
+													&& newSource.getAccessPath().getFieldCount() == 0
+													&& newSource.getAccessPath().getTaintSubFields()) {
+												addLeftValue = true;
+												targetType = rightField.getType();
+											}
+										}
+									}
+									// indirect taint propagation:
+									// if rightvalue is local and source is instancefield of this local:
+									// y = x && x.f tainted --> y.f, x.f tainted
+									// y.g = x && x.f tainted --> y.g.f, x.f tainted
+									else if (rightVal instanceof Local && newSource.getAccessPath().isInstanceFieldRef()) {
+										Local base = newSource.getAccessPath().getPlainValue();
+										if (aliasing.mayAlias(rightVal, base)) {
+											addLeftValue = true;
+											targetType = newSource.getAccessPath().getBaseType();
+										}
+									}
+									//y = x[i] && x tainted -> x, y tainted
+									else if (rightVal instanceof ArrayRef) {
+										Local rightBase = (Local) ((ArrayRef) rightVal).getBase();
+										if (newSource.getAccessPath().getArrayTaintType() != ArrayTaintType.Length
+												&& aliasing.mayAlias(rightBase, newSource.getAccessPath().getPlainValue())) {											
+											addLeftValue = true;
+											targetType = newSource.getAccessPath().getBaseType();
+											assert targetType instanceof ArrayType;
+										}
+									}
+									// generic case, is true for Locals, ArrayRefs that are equal etc..
+									//y = x && x tainted --> y, x tainted
+									else if (aliasing.mayAlias(rightVal, newSource.getAccessPath().getPlainValue())) {
+										if (manager.getConfig().getEnableArraySizeTainting()
+												|| !(rightVal instanceof NewArrayExpr)) {
+											addLeftValue = true;
+											targetType = newSource.getAccessPath().getBaseType();
+										}
+									}
+									
+									// One reason to taint the left side is enough
+									if (addLeftValue)
+										break;
+								}
+							}
+							
+							// If we have nothing to add, we quit
+							if (!addLeftValue)
+								return null;
+							
+							// Do not propagate non-active primitive taints
+							if (!newSource.isAbstractionActive()
+									&& (assignStmt.getLeftOp().getType() instanceof PrimType
+											|| TypeUtils.isStringType(assignStmt.getLeftOp().getType())))
+								return Collections.singleton(newSource);
+							
+							// If the right side is a typecast, it must be compatible,
+							// or this path is not realizable
+							if (rightValue instanceof CastExpr) {
+								CastExpr ce = (CastExpr) rightValue;
+								if (!manager.getTypeUtils().checkCast(newSource.getAccessPath(), ce.getCastType()))
+									return Collections.emptySet();
+							}
+							// Special handling for certain operations
+							else if (rightValue instanceof LengthExpr) {
+								// Check that we really have an array
+								assert newSource.getAccessPath().isEmpty()
+										|| newSource.getAccessPath().getBaseType() instanceof ArrayType;
+								assert leftValue instanceof Local;
+								
+								// Is the length tainted?
+								if (newSource.getAccessPath().getArrayTaintType() == ArrayTaintType.Contents)
+									return Collections.singleton(newSource);
+								
+								// Taint the array length
+								AccessPath ap = new AccessPath(leftValue, null, IntType.v(),
+										(Type[]) null, true, false, true, ArrayTaintType.ContentsAndLength);
+								Abstraction lenAbs = newSource.deriveNewAbstraction(ap, assignStmt);
+								return new TwoElementSet<Abstraction>(newSource, lenAbs);
+							}
+							
+							// Do we taint the contents of an array?
+							if (leftValue instanceof ArrayRef)
+								arrayTaintType = ArrayTaintType.Contents;
+							
+							// If this is a sink, we need to report the finding
+							if (manager.getSourceSinkManager() != null
+									&& manager.getSourceSinkManager().isSink(stmt, interproceduralCFG(),
+											newSource.getAccessPath())
+									&& newSource.isAbstractionActive()
+									&& newSource.getAccessPath().isEmpty())
+								addResult(new AbstractionAtSink(newSource, assignStmt));
+							
+							Set<Abstraction> res = new HashSet<Abstraction>();
+							Abstraction targetAB = mappedAP.equals(newSource.getAccessPath())
+									? newSource : newSource.deriveNewAbstraction(mappedAP, null);							
+							addTaintViaStmt(d1, assignStmt, targetAB, res, cutFirstField,
+									interproceduralCFG().getMethodOf(src), targetType,
+									arrayTaintType);
+							res.add(newSource);
+							return res;
+						}
+					};
+				}//else if(src instanceOf AssignStmt)
+				// for unbalanced problems, return statements correspond to
+				// normal flows, not return flows, because there is no return
+				// site we could jump to
+				else if (src instanceof ReturnStmt) {
+					final ReturnStmt returnStmt = (ReturnStmt) src;
+					return new NotifyingNormalFlowFunction(returnStmt) {
+						
+						@Override
+						public Set<Abstraction> computeTargetsInternal(Abstraction d1, Abstraction source) {							
 							// Check whether we have reached a sink
 							if (manager.getSourceSinkManager() != null
 									&& source.isAbstractionActive()
@@ -479,14 +613,35 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 									&& manager.getSourceSinkManager().isSink(returnStmt, interproceduralCFG(),
 											source.getAccessPath()))
 								addResult(new AbstractionAtSink(source, returnStmt));
-						}
-						else if (src instanceof IfStmt
-								|| src instanceof LookupSwitchStmt
-								|| src instanceof TableSwitchStmt) {
-							final Value condition = src instanceof IfStmt ? ((IfStmt) src).getCondition()
-									: src instanceof LookupSwitchStmt ? ((LookupSwitchStmt) src).getKey()
-									: ((TableSwitchStmt) src).getKey();
 							
+							Set<Abstraction> res = propagationRules.applyNormalFlowFunction(d1, source, returnStmt, null);
+							return res == null || res.isEmpty() ? Collections.<Abstraction>emptySet() : res;
+						}
+					};
+				}
+				else if (src instanceof ThrowStmt) {
+					final ThrowStmt throwStmt = (ThrowStmt) src;
+					return new NotifyingNormalFlowFunction(throwStmt) {
+
+						@Override
+						public Set<Abstraction> computeTargetsInternal(Abstraction d1, Abstraction source) {
+							Set<Abstraction> res = propagationRules.applyNormalFlowFunction(d1, source, throwStmt, null);
+							return res == null || res.isEmpty() ? Collections.<Abstraction>emptySet() : res;
+						}
+					};
+				}
+				// IF statements can lead to implicit flows or sinks
+				else if (src instanceof IfStmt
+						|| src instanceof LookupSwitchStmt
+						|| src instanceof TableSwitchStmt) {
+					final Value condition = src instanceof IfStmt ? ((IfStmt) src).getCondition()
+							: src instanceof LookupSwitchStmt ? ((LookupSwitchStmt) src).getKey()
+							: ((TableSwitchStmt) src).getKey();
+					
+					return new NotifyingNormalFlowFunction(stmt) {
+
+						@Override
+						public Set<Abstraction> computeTargetsInternal(Abstraction d1, Abstraction source) {
 							// Check for a sink
 							if (source.isAbstractionActive()
 									&& manager.getSourceSinkManager() != null
@@ -497,28 +652,41 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 										addResult(new AbstractionAtSink(source, stmt));
 										break;
 									}
+							
+							Set<Abstraction> res = propagationRules.applyNormalFlowFunction(d1, source, stmt, null);
+							return res == null || res.isEmpty() ? Collections.<Abstraction>emptySet() : res;
 						}
-						
-						// Return what we have so far
-						return res == null || res.isEmpty() ? Collections.<Abstraction>emptySet() : res;
-					}
-					
-				};
-			}
+					}//end of return new NotifyingFlowFunction;
+				     }//end of else if
+				return Identity.v();
+			}//end of getNormalFlowFunction 
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
 
-			@Override
-			public FlowFunction<Abstraction> getCallFlowFunction(final Unit src, final SootMethod dest) {
-                if (!dest.isConcrete()){
-                    logger.debug("Call skipped because target has no body: {} -> {}", src, dest);
-                    return KillAll.v();
-                }
-                
-				final Stmt stmt = (Stmt) src;
+
+
+
+
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
+		    @Override
+		    public FlowFunction<Abstraction> getCallFlowFunction(final Unit src, final SootMethod dest) {
+			if (!dest.isConcrete()){
+			    logger.debug("Call skipped because target has no body: {} -> {}", src, dest);
+			    return KillAll.v();
+			}
+			
+			final Stmt stmt = (Stmt) src;
 				final InvokeExpr ie = (stmt != null && stmt.containsInvokeExpr())
 						? stmt.getInvokeExpr() : null;
 				
 				final Local[] paramLocals = dest.getActiveBody().getParameterLocals().toArray(
 						new Local[0]);
+				
+				final SourceInfo sourceInfo = manager.getSourceSinkManager() != null
+						? manager.getSourceSinkManager().getSourceInfo(stmt, interproceduralCFG()) : null;
+				final boolean isSink = manager.getSourceSinkManager() != null
+						? manager.getSourceSinkManager().isSink(stmt, interproceduralCFG(), null) : false;
 				
 				// This is not cached by Soot, so accesses are more expensive
 				// than one might think
@@ -539,13 +707,16 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 					private Set<Abstraction> computeTargetsInternal(Abstraction d1, Abstraction source) {
 						if (manager.getConfig().getStopAfterFirstFlow() && !results.isEmpty())
 							return Collections.emptySet();
-						if (source == getZeroValue())
-							return Collections.emptySet();
 						
-						// Do not analyze static initializers if static field
-						// tracking is disabled
-						if (!manager.getConfig().getEnableStaticFieldTracking() && dest.isStaticInitializer())
+						//if we do not have to look into sources or sinks:
+						if (!manager.getConfig().getInspectSources() && sourceInfo != null)
 							return Collections.emptySet();
+						if (!manager.getConfig().getInspectSinks() && isSink)
+							return Collections.emptySet();
+						if (source == getZeroValue()) {
+							assert sourceInfo != null;
+							return Collections.singleton(source);
+						}
 						
 						// Notify the handler if we have one
 						if (taintPropagationHandler != null)
@@ -557,6 +728,8 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 								source, stmt, killAll);
 						if (killAll.value)
 							return Collections.emptySet();
+						if (res == null)
+							res = new HashSet<Abstraction>();
 						
 						// Only propagate the taint if the target field is actually read
 						if (source.getAccessPath().isStaticFieldRef()
@@ -567,15 +740,14 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 						Set<AccessPath> resMapping = mapAccessPathToCallee(dest, ie, paramLocals,
 								thisLocal, source.getAccessPath());
 						if (resMapping == null)
-							return res == null || res.isEmpty() ? Collections.<Abstraction>emptySet() : res;
+							return res;
 						
 						// Translate the access paths into abstractions
 						Set<Abstraction> resAbs = new HashSet<Abstraction>(resMapping.size());
-						if (res != null && !res.isEmpty())
-							resAbs.addAll(res);
+						resAbs.addAll(res);
 						for (AccessPath ap : resMapping)
 							if (ap.isStaticFieldRef()) {
-								// Do not propagate static fields that are not read inside the callee
+								// Do not propagate static fields that are not read inside the callee 
 								if (interproceduralCFG().isStaticFieldRead(dest, ap.getFirstField()))
 									resAbs.add(source.deriveNewAbstraction(ap, stmt));
 							}
@@ -587,8 +759,14 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 						return resAbs;
 					}
 				};
-			}
+		    }//end of getCallFlowFunction
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
 
+
+
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
 			@Override
 			public FlowFunction<Abstraction> getReturnFlowFunction(final Unit callSite,
 					final SootMethod callee, final Unit exitStmt, final Unit retSite) {
@@ -643,6 +821,37 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 										|| isCallSiteActivatingTaint(callSite, source.getActivationUnit()))
 									newSource = source.getActiveCopy();
 						
+						// Empty access paths are never propagated over return edges
+						if (source.getAccessPath().isEmpty()) {
+							// If we return a constant, we must taint it
+							if (returnStmt != null && returnStmt.getOp() instanceof Constant)
+								if (callSite instanceof DefinitionStmt) {
+									DefinitionStmt def = (DefinitionStmt) callSite;
+									Abstraction abs = newSource.deriveNewAbstraction
+											(newSource.getAccessPath().copyWithNewValue(def.getLeftOp()), (Stmt) exitStmt);
+
+									Set<Abstraction> res = new HashSet<Abstraction>();
+									res.add(abs);
+									
+									// If we taint a return value because it is implicit,
+									// we must trigger an alias analysis
+									if(aliasing.canHaveAliases(def, def.getLeftOp(), abs) && !callerD1sConditional)
+										for (Abstraction d1 : callerD1s)
+											aliasing.computeAliases(d1, iCallStmt, def.getLeftOp(), res,
+													interproceduralCFG().getMethodOf(callSite), abs);
+									return res;
+								}
+							
+							// Kill the empty abstraction
+							return Collections.emptySet();
+						}
+
+						// Are we still inside a conditional? We check this before we
+						// leave the method since the return value is still assigned
+						// inside the method.
+						boolean insideConditional = newSource.getTopPostdominator() != null
+								|| newSource.getAccessPath().isEmpty();
+						
 						//if abstraction is not active and activeStmt was in this method, it will not get activated = it can be removed:
 						if(!newSource.isAbstractionActive() && newSource.getActivationUnit() != null)
 							if (interproceduralCFG().getMethodOf(newSource.getActivationUnit()) == callee)
@@ -658,11 +867,6 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 							assert returnStmt.getOp() == null
 									|| returnStmt.getOp() instanceof Local
 									|| returnStmt.getOp() instanceof Constant;
-							
-							// Are we still inside a conditional? If so, a call so a sink
-							// method is a leak
-							boolean insideConditional = source.getTopPostdominator() != null
-									|| source.getAccessPath().isEmpty();
 							
 							boolean mustTaintSink = insideConditional;
 							mustTaintSink |= returnStmt.getOp() != null
@@ -681,12 +885,8 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 						if (callSite == null)
 							return Collections.emptySet();
 						
-						ByReferenceBoolean killAll = new ByReferenceBoolean();
 						Set<Abstraction> res = propagationRules.applyReturnFlowFunction(callerD1s,
-								newSource, (Stmt) exitStmt, (Stmt) retSite, (Stmt) callSite,
-								killAll);
-						if (killAll.value)
-							return Collections.emptySet();
+								newSource, (Stmt) exitStmt);
 						if (res == null)
 							res = new HashSet<Abstraction>();
 						
@@ -696,7 +896,8 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 							DefinitionStmt defnStmt = (DefinitionStmt) callSite;
 							Value leftOp = defnStmt.getLeftOp();
 							
-							if (aliasing.mayAlias(retLocal, newSource.getAccessPath().getPlainValue())) {
+							if ((insideConditional && leftOp instanceof FieldRef)
+									|| aliasing.mayAlias(retLocal, newSource.getAccessPath().getPlainValue())) {
 								Abstraction abs = newSource.deriveNewAbstraction
 										(newSource.getAccessPath().copyWithNewValue(leftOp), (Stmt) exitStmt);
 								res.add(abs);
@@ -704,7 +905,9 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 								// Aliases of implicitly tainted variables must be mapped back
 								// into the caller's context on return when we leave the last
 								// implicitly-called method
-								if (aliasingStrategy.requiresAnalysisOnReturn())
+								if ((abs.isImplicit()
+										&& (abs.getAccessPath().isInstanceFieldRef() || abs.getAccessPath().isStaticFieldRef())
+										&& !callerD1sConditional) || aliasingStrategy.requiresAnalysisOnReturn())
 									for (Abstraction d1 : callerD1s)
 										aliasing.computeAliases(d1, iCallStmt, leftOp, res,
 												interproceduralCFG().getMethodOf(callSite), abs);
@@ -818,9 +1021,16 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 					}
 
 				};
-			}
-			
-			@Override
+			}//end of getReturnFlowFunction
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
+
+
+
+
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
+		    @Override
 			public FlowFunction<Abstraction> getCallToReturnFlowFunction(final Unit call,
 					final Unit returnSite) {
 				// special treatment for native methods:
@@ -872,11 +1082,8 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 							newSource = source;
 						
 						ByReferenceBoolean killSource = new ByReferenceBoolean();
-						ByReferenceBoolean killAll = new ByReferenceBoolean();
 						Set<Abstraction> res = propagationRules.applyCallToReturnFlowFunction(
-								d1, newSource, iCallStmt, killSource, killAll, true);
-						if (killAll.value)
-							return Collections.emptySet();
+								d1, newSource, iCallStmt, killSource, true);
 						boolean passOn = !killSource.value;
 						
 						// Do not propagate zero abstractions
@@ -1026,8 +1233,14 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 						return res;
 					}
 				};
-			}
-			
+		    }//end of getCallToReturnFlowFunction
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
+		    //*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!*!
+ 
+
+
+		    
+		    //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&			
 			/**
 			 * Maps the given access path into the scope of the callee
 			 * @param callee The method that is being called
@@ -1056,13 +1269,14 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 						&& !callee.isStatic()) {
 					assert ie instanceof InstanceInvokeExpr;
 					InstanceInvokeExpr vie = (InstanceInvokeExpr) ie;
+					// this might be enough because every call must happen with a local variable which is tainted itself:
 					if (aliasing.mayAlias(vie.getBase(), ap.getPlainValue()))
 						if (manager.getTypeUtils().hasCompatibleTypesForCall(ap, callee.getDeclaringClass())) {
 							if (res == null) res = new HashSet<AccessPath>();
 							
 							// Get the "this" local if we don't have it yet
 							if (thisLocal == null)
-								thisLocal = callee.getActiveBody().getThisLocal();
+								thisLocal = callee.isStatic() ? null : callee.getActiveBody().getThisLocal();
 							
 							res.add(ap.copyWithNewValue(thisLocal));
 						}
@@ -1097,15 +1311,37 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 					}
 				}
 				return res;
-			}
-		};
-	}
+			}//end of mapAccessPathToCallee
+		    //&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
 
+
+		};//end of return new FlowFunctions<Unit, Abstraction, SootMethod>
+	}//end of public FlowFunctions<Unit, Abstraction, SootMethod> createFlowFunctionsFactory()
+    //************************************************************************************************************
+
+
+
+
+
+
+
+
+
+
+
+
+    
+
+
+    //************************************************************************************************************
 	@Override
 	public boolean autoAddZero() {
 		return false;
 	}
-	
+    //************************************************************************************************************
+    
+
+    //************************************************************************************************************
 	/**
 	 * Adds a new result of the data flow analysis to the collection
 	 * @param resultAbs The abstraction at the sink instruction
@@ -1128,13 +1364,30 @@ public class InfoflowProblem extends AbstractInfoflowProblem {
 				(resultAbs, resultAbs.getAbstraction());
 		if (newAbs != resultAbs.getAbstraction())
 			newAbs.addNeighbor(resultAbs.getAbstraction());
-	}
+	}//end of addResult
+    //************************************************************************************************************
 
-	/**
+    
+    
+
+    //************************************************************************************************************
+    /**
 	 * Gets the results of the data flow analysis
 	 */
     public Set<AbstractionAtSink> getResults(){
    		return this.results.keySet();
-	}
+    }
+    //************************************************************************************************************
+
+
+    //************************************************************************************************************
+    /**
+	 * Gets the SGPRawData object contining all collected sets of Abstractions
+	 */
+    public SGPRawData getAllAbstractions(){
+   		return this.allAbstractions;
+    }
+    //************************************************************************************************************
+
     
-}
+}//end of class def'n
