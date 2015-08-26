@@ -37,12 +37,14 @@ public class SGPRawData {
 
     /*Local variable definitions*/
 	
+	//Define a list of SGPMetaData objects to contain the incoming information
+	//private ArrayList<SGPMetaData> metadataList;
+	
 	//Define a list of Sets to contain the incoming sets of abstractions
     private ArrayList<Set<Abstraction>> abstractionSetList;
     
     
-
-    
+   
     /*Basic constructor*/
     public SGPRawData(){
 	this.abstractionSetList = new ArrayList<Set<Abstraction>>(); 
@@ -124,8 +126,10 @@ public class SGPRawData {
         		temp = setIter.next();
     			fwriter.println("Access Path:"+temp.getAccessPath().toString());//IS THIS WHAT YOU WANT???
     			fwriter.println("Field Count:"+temp.getAccessPath().getFieldCount());//IS THIS WHAT YOU WANT???
-    			//fwriter.println("Base Type:"+temp.getAccessPath().getBaseType());//IS THIS WHAT YOU WANT???
-    			//fwriter.println("Plain Value:"+temp.getAccessPath().getPlainValue());//IS THIS WHAT YOU WANT???
+    			//fwriter.println("Abstraction current stmt:"+temp.getCurrentStmt());
+    			fwriter.println("Abstraction source context:"+temp.getSourceContext());
+    			//fwriter.println("Base Type:"+temp.getAccessPath().getBaseType());
+    			//fwriter.println("Plain Value:"+temp.getAccessPath().getPlainValue());
     			//What info do you want to output here??
     			
     			//Incr set element counter
