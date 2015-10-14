@@ -63,12 +63,20 @@ public class SGPHandler implements TaintPropagationHandler{
 	
 	}
 	
-	@Override
-	//Handler function that is invoked when a taint is propagated in the data flow engine
-	public void notifyFlowIn(Unit stmt, Abstraction taint, IInfoflowCFG cfg,
-			FlowFunctionType type) {
-		//System.out.println("I am calling from notifyFlowIn, a taint is being propagated!");
-		this.log("I am calling from notifyFlowIn, a taint is being propagated! ");
+    @Override
+    //Handler function that is invoked when a taint is propagated in the data flow engine
+    public void notifyFlowIn(Unit stmt, Abstraction taint, IInfoflowCFG cfg,
+			     FlowFunctionType type) {
+	//System.out.println("I am calling from notifyFlowIn, a taint is being propagated!");
+	String handler = "Handler: notifyFlowIn\n";
+	String flwfxn = type.toString();
+	String flow = "Flow function type: "+flwfxn+"\n";
+	String acspath = taint.getAccessPath().getPlainValue().toString();
+	String accesspath = "AccessPath value: "+acspath+"\n";    
+	String srcctxt = taint.getSourceContext().toString();
+	String sourcecontext = "Source Context: "+srcctxt+"\n";
+	
+		this.log(handler+flow+accesspath+sourcecontext);
 		
 	}
 
@@ -79,6 +87,7 @@ public class SGPHandler implements TaintPropagationHandler{
 			FlowFunctionType type) {
 		// TODO Auto-generated method stub
 		System.out.println("I am calling from notifyFlowOut, a new taint has been created!");
+		YOU ARE HERE - modify the log so that it operates as above but shows the difference in incoming and outgoing Abstr
 		this.log("I am calling from notifyFlowOut, a new taint has been created! ");
 		return outgoing; //pass on outgoing abstraction without altering
 	}
@@ -87,21 +96,24 @@ public class SGPHandler implements TaintPropagationHandler{
     private void log(String str){
 	synchronized(foutWriter){ //ensure safe concurrent access
 	    try {
-			foutWriter.write(str+"  | Write #"+i+"\n");
-		} catch (IOException e) {
-			System.out.println("Error: Could not write to file: "+filename);
-			e.printStackTrace();
-		}
+		foutWriter.write("********************************************************************************\n");
+		foutWriter.write("Log "+i+":\n");
+		foutWriter.write(str);
+		foutWriter.write("********************************************************************************\n");
+	    } catch (IOException e) {
+		System.out.println("Error: Could not write to file: "+filename);
+		e.printStackTrace();
+	    }
 	    try {
-			foutWriter.flush();//flush buffer
-		} catch (IOException e) {
-			System.out.println("Error: Could not flush file: "+filename);
-			e.printStackTrace();
-		} 
-	    i++;
+		foutWriter.flush();//flush buffer
+	    } catch (IOException e) {
+		System.out.println("Error: Could not flush file: "+filename);
+		e.printStackTrace();
+	    } 
+	    i++; //increment log counter
 	}
     }
-
+    
     /*Close the open file stream*/
     public void closeFile(){
 	try{
