@@ -38,18 +38,19 @@ public class SGPHandlerVerbose implements TaintPropagationHandler{
     //TESTING ONLY - test counter
     int i=0;
     
-    //HashMap to contain Abstraction counters
+    //HashMaps to contain Abstraction counters, contexts
     //SIZE OF HASHMAP???
     ConcurrentHashMap<Integer, Integer> counters;
+    ConcurrentHashMap<Integer, String> contexts;
     
 	//Default constructor
 	public SGPHandlerVerbose(){
 		//Instantiate the SGPData object
 		sgpData = new SGPData();
 
-		//Instantiate counter hashmap - wrap in synchronized map to ensure safe concurrent access
+		//Instantiate counter hashmap, contextsw hashmap
 		 counters = new ConcurrentHashMap<Integer, Integer>();
-			
+		 contexts = new ConcurrentHashMap<Integer, String>();
 		
 		//Instantiate file object
 		filename="sgpOutputFile.txt";//for now use default name
@@ -149,15 +150,36 @@ public class SGPHandlerVerbose implements TaintPropagationHandler{
 			Abstraction incoming, Set<Abstraction> outgoing, IInfoflowCFG cfg,
 			FlowFunctionType type) {
 		
-		//Length counter logic
+		//Length counter, source context logic
+		Integer tmpctr;
 		//Iterate over each Abstraction in the outgoing set
     	for(Abstraction nextOutgoingAbs : outgoing){
-    		if(counters.containsKey(nextOutgoingAbs.hashCode())){
-    			//If this Abstraction is already in the hashmap, find and increment it's counter
-    			counters.replace(Integer.valueOf(nextOutgoingAbs.hashCode()), (counters.get(Integer.valueOf(nextOutgoingAbs.hashCode())+1)));
+    		if(nextOutgoingAbs!=null){
+    		if(counters.containsKey(Integer.valueOf(nextOutgoingAbs.hashCode()))){
+    			//If this Abstraction is already in the hashmap, find and increment it's counter	
+    				tmpctr=counters.get(nextOutgoingAbs.hashCode())+1;
+    				counters.replace(Integer.valueOf(nextOutgoingAbs.hashCode()), tmpctr);
     		}else{
-    			//Otherwise, add a new entry to the map. New counter value = value of incoming counter +1
-    			counters.put(Integer.valueOf(nextOutgoingAbs.hashCode()), Integer.valueOf(counters.get(Integer.valueOf(incoming.hashCode()))+1));
+    			//Otherwise, add a new entry to context map. 
+    			//Add source context for this Abstraction to context hash map
+				if(nextOutgoingAbs.getSourceContext()!=null){
+					contexts.put(Integer.valueOf(nextOutgoingAbs.hashCode()), nextOutgoingAbs.getSourceContext().toString());
+				}else{
+					contexts.put(Integer.valueOf(nextOutgoingAbs.hashCode()), "(null SourceContext)");
+				}
+    			
+    			//Assign length counter to newly added Abstraction
+    			if(incoming!=null){
+    				Integer value = counters.get(Integer.valueOf(incoming.hashCode()));
+    				if(value!=null){
+    					value++; //If Abstraction has a parent that's already in the hash table, new counter = parent counter ++
+    				}else{
+    					value=1; //Otherwise, this is the first propagation of this abstraction so new counter =1
+    					
+    				}
+    				counters.put(Integer.valueOf(nextOutgoingAbs.hashCode()), value); //update counter for this Abstraction
+    				}
+    			}
     		}
     	}
 
@@ -347,17 +369,35 @@ public class SGPHandlerVerbose implements TaintPropagationHandler{
     }
     
     /*Output counter data*/
-    public void outputCounterData(){
+    public void outputData(){
     	
     	//Ensure safe access
-    	synchronized(foutWriter){ YOU ARE HERE
+    	synchronized(foutWriter){
+    		//DEBUG/TESTING: Output size of counters, contexts
+    		try{
+    			foutWriter.write("********************************************************************************\n");
+    			foutWriter.write("**** Data Summary ****\n");
+    			foutWriter.write("Number of entries in counters = "+counters.size()+"\n");
+    			foutWriter.write("Number of entries in contexts = "+contexts.size()+"\n");
+    			foutWriter.write("********************************************************************************\n");
+    			//TODO: - make this properly fixed width 
+    			foutWriter.write("  Abstraction ID  |  Length  |  Source Context  | ");
+    		}catch(IOException e){
+    			System.out.println("Error: Could not write to file:"+filename);
+    			e.printStackTrace();
+    		}
+    		
     		//Iterate over all elements of HashMap, output computed lengths
         	for (ConcurrentHashMap.Entry<Integer, Integer> entry : counters.entrySet()) {
-        	    
-        		
-        		Integer key = entry.getKey();
-        	    Integer value = entry.getValue();
-        	    // ...
+        		try{
+        			foutWriter.write(entry.getKey()+"       "); //Abstraction id (key)
+        			foutWriter.write(entry.getValue()+"       "); //length
+        			foutWriter.write(contexts.get(entry.getKey())+"       \n"); //source context
+        			foutWriter.write("-----------------------------------------------------------------------------\n");
+        		}catch(IOException e){
+        			System.out.println("Error: Could not write to file:"+filename);
+        			e.printStackTrace();
+        		}
         	}
         }
     		
