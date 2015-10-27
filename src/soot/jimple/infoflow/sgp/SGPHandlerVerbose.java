@@ -17,6 +17,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import soot.Unit;
 import soot.jimple.infoflow.data.Abstraction;
@@ -35,6 +37,9 @@ public class SGPHandlerVerbose implements TaintPropagationHandler{
     FileWriter foutWriter;
     String filename;
     
+    //Lock for ensuring safe concurrent access to hash tables
+    Lock lock;
+    
     //TESTING ONLY - test counter
     int i=0;
     
@@ -48,6 +53,9 @@ public class SGPHandlerVerbose implements TaintPropagationHandler{
 		//Instantiate the SGPData object
 		sgpData = new SGPData();
 
+		//Instantiate the lock
+		lock = new ReentrantLock();
+		
 		//Instantiate counter hashmap, contextsw hashmap
 		 counters = new ConcurrentHashMap<Integer, Integer>();
 		 contexts = new ConcurrentHashMap<Integer, String>();
@@ -81,7 +89,9 @@ public class SGPHandlerVerbose implements TaintPropagationHandler{
     //Handler function that is invoked when a taint is propagated in the data flow engine
     public void notifyFlowIn(Unit stmt, Abstraction taint, IInfoflowCFG cfg,
 			     FlowFunctionType type) {
-	//System.out.println("I am calling from notifyFlowIn, a taint is being propagated!");
+	
+    /*	
+    //System.out.println("I am calling from notifyFlowIn, a taint is being propagated!");
     
     //Set up local vars to hold Abstraction info
     String flwfxn;	
@@ -141,49 +151,58 @@ public class SGPHandlerVerbose implements TaintPropagationHandler{
 	String accesshashtxt = "AccessPath Hash:"+accesshash+"\n";
 	String stmttxt = "Soot statement: "+statement+"\n";
 	this.log(handler+flow+accesspath+sourcecontext+abshashtxt+accesshashtxt);
-		
+		*/
 	}
 
-	@Override
-	//Handler function that is invoked when a taint is generated in the data flow engine
-	public Set<Abstraction> notifyFlowOut(Unit stmt, Abstraction d1,
-			Abstraction incoming, Set<Abstraction> outgoing, IInfoflowCFG cfg,
-			FlowFunctionType type) {
-		
-		//Length counter, source context logic
-		Integer tmpctr;
-		//Iterate over each Abstraction in the outgoing set
+    @Override
+    //Handler function that is invoked when a taint is generated in the data flow engine
+    public Set<Abstraction> notifyFlowOut(Unit stmt, Abstraction d1,
+					  Abstraction incoming, Set<Abstraction> outgoing, IInfoflowCFG cfg,
+					  FlowFunctionType type) {
+	
+	//Length counter, source context logic
+	Integer tmpctr;
+	//Iterate over each Abstraction in the outgoing set
     	for(Abstraction nextOutgoingAbs : outgoing){
-    		if(nextOutgoingAbs!=null){
+	    if(nextOutgoingAbs!=null){
+		
+    		//Lock critical section
+    		lock.lock();
+    		
     		if(counters.containsKey(Integer.valueOf(nextOutgoingAbs.hashCode()))){
-    			//If this Abstraction is already in the hashmap, find and increment it's counter	
-    				tmpctr=counters.get(nextOutgoingAbs.hashCode())+1;
-    				counters.replace(Integer.valueOf(nextOutgoingAbs.hashCode()), tmpctr);
+		    //If this Abstraction is already in the hashmap, find and increment it's counter	
+		    
+		    tmpctr=counters.get(nextOutgoingAbs.hashCode())+1;
+		    counters.replace(Integer.valueOf(nextOutgoingAbs.hashCode()), tmpctr);
     		}else{
-    			//Otherwise, add a new entry to context map. 
-    			//Add source context for this Abstraction to context hash map
-				if(nextOutgoingAbs.getSourceContext()!=null){
-					contexts.put(Integer.valueOf(nextOutgoingAbs.hashCode()), nextOutgoingAbs.getSourceContext().toString());
-				}else{
-					contexts.put(Integer.valueOf(nextOutgoingAbs.hashCode()), "(null SourceContext)");
-				}
-    			
-    			//Assign length counter to newly added Abstraction
-    			if(incoming!=null){
-    				Integer value = counters.get(Integer.valueOf(incoming.hashCode()));
-    				if(value!=null){
-    					value++; //If Abstraction has a parent that's already in the hash table, new counter = parent counter ++
-    				}else{
-    					value=1; //Otherwise, this is the first propagation of this abstraction so new counter =1
-    					
-    				}
-    				counters.put(Integer.valueOf(nextOutgoingAbs.hashCode()), value); //update counter for this Abstraction
-    				}
-    			}
-    		}
-    	}
+		    //Otherwise, add a new entry to context map. 
+		    //Add source context for this Abstraction to context hash map
+		    if(nextOutgoingAbs.getSourceContext()!=null){
+			contexts.put(Integer.valueOf(nextOutgoingAbs.hashCode()), nextOutgoingAbs.getSourceContext().toString());
+		    }else{
+			contexts.put(Integer.valueOf(nextOutgoingAbs.hashCode()), "(null SourceContext)");
+		    }
+		    
+		    //Assign length counter to newly added Abstraction
+		    if(incoming!=null){
+			Integer value = counters.get(Integer.valueOf(incoming.hashCode()));
+			if(value!=null){
+			    value++; //If Abstraction has a parent that's already in the hash table, new counter = parent counter ++
+			}else{
+			    value=1; //Otherwise, this is the first propagation of this abstraction so new counter =1
+			    
+			}
+			counters.put(Integer.valueOf(nextOutgoingAbs.hashCode()), value); //update counter for this Abstraction
+		    }
+		}
 
-    	//Verbose Output Logic
+		//Unlock
+		lock.unlock();
+		
+	    }//if(nextOutgoingAbs!=null)
+    	}//for(Abstraction:etc)
+	
+    	//*******Verbose Output Logic********
     	
 		//Identify name of handler function for the log
 		String handler = "Handler: notifyFlowOut\n";
@@ -195,6 +214,7 @@ public class SGPHandlerVerbose implements TaintPropagationHandler{
 		String srcctxtOUTtxt="Outgoing Abstraction Source Context: ";
 		String abshashOUTtxt="Outgoing Abstraction Hash:";
 		String acspathhashOUTtxt="Outgoing AccessPath Hash:";
+		String thread="CALLING THREAD: "+Thread.currentThread().getId()+"\n"; //DEBUG: get ID of calling thread
 		
 		//Set up local vars for getting Abstraction data
 		String flwfxn;
@@ -207,6 +227,8 @@ public class SGPHandlerVerbose implements TaintPropagationHandler{
 		String srcctxtd1;
 		int abshashIN=0; //0 indicates incoming Abstraction is null
 		int acspathhashIN=0; //0 indicates AccessPath for incoming abstraction is null
+		int parentctr=0; //DEBUG: get value of incoming abstraction counter
+		String isactive = null;//DEBUG: check if active or alias
 		
 		//Get type of flow function
 		if(type!=null){
@@ -249,10 +271,22 @@ public class SGPHandlerVerbose implements TaintPropagationHandler{
 				}else{
 					srcctxtIN="null";
 				}
-		
-		//Get incoming Abstraction hash
+				
+				
+		//Get incoming Abstraction hash //DEBUG and incoming counter and isActive
 		if(incoming!=null){
 			abshashIN=incoming.hashCode();
+			//***DEBUG***
+			lock.lock();
+			if(counters.get(incoming.hashCode())!=null){
+				parentctr=counters.get(incoming.hashCode());
+			}else{
+				parentctr=-9999;//DEBUG:-9999 indicates no counter value for parent yet (null)
+			}
+			lock.unlock();
+			//***DEBUG***
+			
+			isactive="ISACTIVE: "+incoming.isAbstractionActive()+"\n"; //DEBUG is active taint or alias
 		}
 		
 		//Get incomgin AccessPath hash
@@ -272,7 +306,7 @@ public class SGPHandlerVerbose implements TaintPropagationHandler{
 		    srcctxtOUT=null;
 		    int abshashOUT=0; //as above 0 for either hash value indicates the corresp object was null
 		    int acspathhashOUT=0;
-		    
+		    int childctr=-9999;//DEBUG - counter value for outgoing abstraction
 
 		    //loop over all Abstractions in outgoing set
 		    while(outIter.hasNext()){
@@ -300,13 +334,24 @@ public class SGPHandlerVerbose implements TaintPropagationHandler{
 				abshashOUT=temp.hashCode();
 			}
 			
+			//DEBUG - Get counter for this Abstraction
+			//***DEBUG***
+			lock.lock();
+			if(counters.get(temp.hashCode())!=null){
+				childctr=counters.get(temp.hashCode());
+			}else{
+				childctr=-9999;//DEBUG:-9999 indicates no counter value for child yet (null)
+			}
+			lock.unlock();
+			//***DEBUG***
+			
 			//Get hash for this AccessPath
 			if(temp.getAccessPath()!=null){
 				acspathhashOUT=temp.getAccessPath().hashCode();
 			}
 			
 			//Build output string
-			outabs=outabs.concat(acspathOUTtxt+acspathOUT+"\n"+srcctxtOUTtxt+srcctxtOUT+"\n"+abshashOUTtxt+abshashOUT+"\n"+acspathhashOUTtxt+acspathhashOUT+"\n");
+			outabs=outabs.concat(acspathOUTtxt+acspathOUT+"\n"+srcctxtOUTtxt+srcctxtOUT+"\n"+abshashOUTtxt+abshashOUT+"\n"+acspathhashOUTtxt+acspathhashOUT+"\n"+"CHILD COUNTER: "+childctr+"\n");
 			
 			j++; //advance counter
 			abshashOUT=0; //reset hash ints for next iteration
@@ -327,9 +372,10 @@ public class SGPHandlerVerbose implements TaintPropagationHandler{
 		String sourcecontextIN = "Incoming Source Context: "+srcctxtIN+"\n";
 		String acspathhashINtxt = "Incoming AccessPath Hash: "+acspathhashIN+"\n";
 		String abshashINtxt = "Incoming Abstraction hash: "+abshashIN+"\n";
+		String parentcounter = "PARENT COUNTER = "+parentctr+"\n"; //DEBUG: dump value of parent counter
 		
 		//Send full output string to log
-		this.log(handler+flow+inabs+accesspathd1+sourcecontextd1+accesspathIN+sourcecontextIN+abshashINtxt+acspathhashINtxt+outabs+"\n");
+		this.log(thread+parentcounter+handler+flow+inabs+accesspathd1+sourcecontextd1+accesspathIN+sourcecontextIN+abshashINtxt+acspathhashINtxt+isactive+outabs+"\n");
 		
 		return outgoing; //pass on outgoing abstraction set without altering
 	}
@@ -381,7 +427,7 @@ public class SGPHandlerVerbose implements TaintPropagationHandler{
     			foutWriter.write("Number of entries in contexts = "+contexts.size()+"\n");
     			foutWriter.write("********************************************************************************\n");
     			//TODO: - make this properly fixed width 
-    			foutWriter.write("  Abstraction ID  |  Length  |  Source Context  | ");
+    			foutWriter.write("  Abstraction ID  |  Length  |  Source Context  | \n");
     		}catch(IOException e){
     			System.out.println("Error: Could not write to file:"+filename);
     			e.printStackTrace();
