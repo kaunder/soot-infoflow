@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import soot.NullType;
 import soot.SootMethod;
@@ -82,6 +83,11 @@ public class Abstraction implements Cloneable, FastSolverLinkedNode<Abstraction,
 	
 	private AtomicBitSet pathFlags = null;
 	
+	/*
+	 *KU - Unique identifier
+	 */
+	private UUID id=null;
+	
 	public Abstraction(AccessPath sourceVal,
 			Stmt sourceStmt,
 			Object userData,
@@ -104,7 +110,10 @@ public class Abstraction implements Cloneable, FastSolverLinkedNode<Abstraction,
 		this.neighbors = null;
 		this.isImplicit = isImplicit;
 		this.currentStmt = sourceContext == null ? null : sourceContext.getStmt();
-	}
+		this.id = UUID.randomUUID(); //KU - generate new unique ID
+		
+		
+		}
 
 	/**
 	 * Creates an abstraction as a copy of an existing abstraction,
@@ -134,6 +143,7 @@ public class Abstraction implements Cloneable, FastSolverLinkedNode<Abstraction,
 		accessPath = p;
 		neighbors = null;
 		currentStmt = null;
+		id=UUID.randomUUID(); //KU - assign new unique ID since this is a new object
 	}
 	
 	public final Abstraction deriveInactiveAbstraction(Unit activationUnit){
@@ -501,6 +511,11 @@ public class Abstraction implements Cloneable, FastSolverLinkedNode<Abstraction,
 		return this.currentStmt;
 	}
 	
+	/*KU - return the unique ID for this abstraction*/
+	public UUID getID(){
+		return this.id;
+	}
+	
 	@Override
 	public void addNeighbor(Abstraction originalAbstraction) {
 		// We should not register ourselves as a neighbor
@@ -615,5 +630,7 @@ public class Abstraction implements Cloneable, FastSolverLinkedNode<Abstraction,
 	void setCurrentStmt(Stmt currentStmt) {
 		this.currentStmt = currentStmt;
 	}
+	
+	
 		
 }
