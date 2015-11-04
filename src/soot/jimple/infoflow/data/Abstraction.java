@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import soot.NullType;
+import soot.Printer;
 import soot.SootMethod;
 import soot.Type;
 import soot.Unit;
@@ -30,6 +31,7 @@ import soot.jimple.infoflow.data.AccessPath.ArrayTaintType;
 import soot.jimple.infoflow.solver.cfg.IInfoflowCFG.UnitContainer;
 import soot.jimple.infoflow.solver.fastSolver.FastSolverLinkedNode;
 import soot.jimple.internal.JimpleLocal;
+import soot.tagkit.Tag;
 
 import com.google.common.collect.Sets;
 
@@ -84,9 +86,17 @@ public class Abstraction implements Cloneable, FastSolverLinkedNode<Abstraction,
 	private AtomicBitSet pathFlags = null;
 	
 	/*
-	 *KU - Unique identifier
+	 *KU - Unique identifier + debug stuff TODO: clean up later
 	 */
 	private UUID id=null;
+	//private int intid=-2;
+	private List<Tag> tags;
+	private int stmthash;
+	private String stmtStr;
+	private int firstConstr=0; //check which constructor was used
+	private SourceContext copyConstrOrigContext;
+	private boolean origIsNull=false;
+	
 	
 	public Abstraction(AccessPath sourceVal,
 			Stmt sourceStmt,
@@ -96,6 +106,10 @@ public class Abstraction implements Cloneable, FastSolverLinkedNode<Abstraction,
 		this(sourceVal,
 				new SourceContext(sourceVal, sourceStmt, userData),
 				exceptionThrown, isImplicit);
+		this.tags=sourceStmt.getTags();
+		this.stmthash=sourceStmt.hashCode();
+		this.stmtStr=sourceStmt.toString();
+		this.firstConstr=1;
 	}
 
 	protected Abstraction(AccessPath apToTaint,
@@ -110,8 +124,13 @@ public class Abstraction implements Cloneable, FastSolverLinkedNode<Abstraction,
 		this.neighbors = null;
 		this.isImplicit = isImplicit;
 		this.currentStmt = sourceContext == null ? null : sourceContext.getStmt();
+		
+		//KU - assign unique ID to each Abstraction generated
 		this.id = UUID.randomUUID(); //KU - generate new unique ID
 		
+		if(this.firstConstr==0){
+			this.firstConstr=2;
+		}
 		
 		}
 
@@ -127,6 +146,7 @@ public class Abstraction implements Cloneable, FastSolverLinkedNode<Abstraction,
 			exceptionThrown = false;
 			activationUnit = null;
 			isImplicit = false;
+			origIsNull=true; //KU -DEBUG: TODO remove
 		}
 		else {
 			sourceContext = original.sourceContext;
@@ -144,6 +164,8 @@ public class Abstraction implements Cloneable, FastSolverLinkedNode<Abstraction,
 		neighbors = null;
 		currentStmt = null;
 		id=UUID.randomUUID(); //KU - assign new unique ID since this is a new object
+		firstConstr=3;
+		copyConstrOrigContext = original.sourceContext;
 	}
 	
 	public final Abstraction deriveInactiveAbstraction(Unit activationUnit){
@@ -514,6 +536,36 @@ public class Abstraction implements Cloneable, FastSolverLinkedNode<Abstraction,
 	/*KU - return the unique ID for this abstraction*/
 	public UUID getID(){
 		return this.id;
+	}
+	
+	/*KU - get tags*/
+	public List<Tag> getTags(){
+		return this.tags;
+	}
+	
+	/*KU - get stmt hash*/
+	public int getStmtHash(){
+		return this.stmthash;
+	}
+	
+	/*KU - get stmt str*/
+	public String getStmtStr(){
+		return this.stmtStr;
+	}
+	
+	/*KU - get whether was instantiated by the first constructor*/
+	public int getFirstConstr(){
+		return this.firstConstr;
+	}
+	
+	/*KU - get the original source context from the copy constr*/
+	public SourceContext getCopyConstrOSC(){
+		return this.copyConstrOrigContext;
+	}
+	
+	/*KU - check whether original abstr in the copy constr was null*/
+	public boolean origNull(){
+		return this.origIsNull;
 	}
 	
 	@Override
