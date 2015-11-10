@@ -512,7 +512,7 @@ public class SGPHandlerLite implements TaintPropagationHandler{
         			foutWriter.write(entry.getKey()+"       "); //Abstraction id (key)
         			foutWriter.write(entry.getValue()+"       "); //length
         			foutWriter.write(contexts.get(entry.getKey())+"       \n"); //source context
-        			foutWriter.write("-----------------------------------------------------------------------------\n");
+        			//foutWriter.write("-----------------------------------------------------------------------------\n");
         		}catch(IOException e){
         			System.out.println("Error: Could not write to file:"+filename);
         			e.printStackTrace();

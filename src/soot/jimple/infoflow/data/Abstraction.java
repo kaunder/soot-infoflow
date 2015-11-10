@@ -96,7 +96,9 @@ public class Abstraction implements Cloneable, FastSolverLinkedNode<Abstraction,
 	private int firstConstr=0; //check which constructor was used
 	private SourceContext copyConstrOrigContext;
 	private boolean origIsNull=false;
-	
+	public boolean clonedOC=false;
+	public SourceContext savedNewSC=null;
+	public int ssc=0; //how many times the method set source context has been invoked
 	
 	public Abstraction(AccessPath sourceVal,
 			Stmt sourceStmt,
@@ -149,7 +151,13 @@ public class Abstraction implements Cloneable, FastSolverLinkedNode<Abstraction,
 			origIsNull=true; //KU -DEBUG: TODO remove
 		}
 		else {
-			sourceContext = original.sourceContext;
+			//KU - added .clone()
+			//if(original.sourceContext!=null){
+			//	sourceContext = original.sourceContext.clone(); 
+			//	clonedOC=true;
+			//}else{
+				sourceContext=original.sourceContext;//If orig sourceContext was null no harm in shallow copy(?)
+			//}
 			exceptionThrown = original.exceptionThrown;
 			activationUnit = original.activationUnit;
 			assert activationUnit == null || flowSensitiveAliasing;
@@ -166,7 +174,10 @@ public class Abstraction implements Cloneable, FastSolverLinkedNode<Abstraction,
 		id=UUID.randomUUID(); //KU - assign new unique ID since this is a new object
 		firstConstr=3;
 		copyConstrOrigContext = original.sourceContext;
-	}
+		if(sourceContext!=null){
+			savedNewSC = sourceContext.clone();
+		}
+		}
 	
 	public final Abstraction deriveInactiveAbstraction(Unit activationUnit){
 		if (!flowSensitiveAliasing) {
@@ -632,6 +643,7 @@ public class Abstraction implements Cloneable, FastSolverLinkedNode<Abstraction,
 	 * @param sourceContext The new source context
 	 */
 	public void setSourceContext(SourceContext sourceContext) {
+		ssc++;//KU - DEBUG to see how many times this method is invoked
 		this.sourceContext = sourceContext;
 	}
 	

@@ -70,10 +70,13 @@ public class SGPHandler implements TaintPropagationHandler{
 			     FlowFunctionType type) {
 	//System.out.println("I am calling from notifyFlowIn, a taint is being propagated!");
     
-    //Set up strings to hold Abstraction info
+    //Set up local vars to hold Abstraction info
     String flwfxn;	
     String acspath;
     String srcctxt;
+    String statement;
+    int abshash=0; //0 indicates that the Abstraction was null
+    int accesshash=0; //0 indicates that the AccessPath was null
     
     //Identify name of handler function for the log
     String handler = "Handler: notifyFlowIn\n";
@@ -83,6 +86,13 @@ public class SGPHandler implements TaintPropagationHandler{
 		flwfxn = type.toString();
 	}else{
 		flwfxn="null";
+	}
+	
+	//Get the statement
+	if(stmt!=null){
+		statement=stmt.toString();
+	}else{
+		statement="null";
 	}
 	
 	//Get tainted access path
@@ -99,12 +109,25 @@ public class SGPHandler implements TaintPropagationHandler{
 		srcctxt="null";
 	}
 	
+	//Get Abstraction hash
+	if(taint!=null){
+		abshash=taint.hashCode();
+	}
+	
+	//Get AccessPath hash
+	if(taint.getAccessPath()!=null){
+		accesshash=taint.getAccessPath().hashCode();
+	}
+	
 	//Append log info, pass appended strings to log function for output	
+	//This is prob too much overhead for full run - will need to streamline output
 	String flow = "Flow function type: "+flwfxn+"\n";
 	String accesspath = "AccessPath value: "+acspath+"\n";    
 	String sourcecontext = "Source Context: "+srcctxt+"\n";
-	
-	this.log(handler+flow+accesspath+sourcecontext);
+	String abshashtxt = "Abstraction Hash:"+abshash+"\n";
+	String accesshashtxt = "AccessPath Hash:"+accesshash+"\n";
+	String stmttxt = "Soot statement: "+statement+"\n";
+	this.log(handler+flow+accesspath+sourcecontext+abshashtxt+accesshashtxt);
 		
 	}
 
@@ -117,18 +140,25 @@ public class SGPHandler implements TaintPropagationHandler{
 		//Identify name of handler function for the log
 		String handler = "Handler: notifyFlowOut\n";
 		
-		//Set up strings for log file text
+		//Set up local vars for log file text
 		String inabs = "***Incoming Abstraction Data***\n";
 		String outabs="***Outgoing Abstraction Set Data***\n";
 		String acspathOUTtxt="Outgoing Abstraction Access Path: ";
 		String srcctxtOUTtxt="Outgoing Abstraction Source Context: ";
+		String abshashOUTtxt="Outgoing Abstraction Hash:";
+		String acspathhashOUTtxt="Outgoing AccessPath Hash:";
 		
-		//Set up strings for getting Abstraction data
+		//Set up local vars for getting Abstraction data
 		String flwfxn;
 		String acspathIN;
 		String srcctxtIN;
 		String acspathOUT;
 		String srcctxtOUT;
+		String statement;
+		String acspathd1;
+		String srcctxtd1;
+		int abshashIN=0; //0 indicates incoming Abstraction is null
+		int acspathhashIN=0; //0 indicates AccessPath for incoming abstraction is null
 		
 		//Get type of flow function
 		if(type!=null){
@@ -137,6 +167,26 @@ public class SGPHandler implements TaintPropagationHandler{
 			flwfxn="null";
 		}
 		
+		//Get soot statment
+		if(stmt!=null){
+			statement=stmt.toString();
+		}else{
+			statement="null";
+		}
+		
+		//Get d1 access path
+		if((d1.getAccessPath()!=null)&&(d1.getAccessPath().getPlainValue()!=null)){
+			acspathd1 = d1.getAccessPath().getPlainValue().toString();
+		}else{
+			acspathd1="null";
+		}
+		
+		//Get incoming source context
+		if(d1.getSourceContext()!=null){
+			srcctxtd1 = d1.getSourceContext().toString();
+		}else{
+			srcctxtd1="null";
+		}
 		
 		//Get incoming access path
 		if((incoming.getAccessPath()!=null)&&(incoming.getAccessPath().getPlainValue()!=null)){
@@ -146,10 +196,20 @@ public class SGPHandler implements TaintPropagationHandler{
 		}
 		
 		//Get incoming source context
-		if(incoming.getSourceContext()!=null){
-			srcctxtIN = incoming.getSourceContext().toString();
-		}else{
-			srcctxtIN="null";
+				if(incoming.getSourceContext()!=null){
+					srcctxtIN = incoming.getSourceContext().toString();
+				}else{
+					srcctxtIN="null";
+				}
+		
+		//Get incoming Abstraction hash
+		if(incoming!=null){
+			abshashIN=incoming.hashCode();
+		}
+		
+		//Get incomgin AccessPath hash
+		if(incoming.getAccessPath()!=null){
+			acspathhashIN=incoming.getAccessPath().hashCode();
 		}
 
 		
@@ -162,6 +222,8 @@ public class SGPHandler implements TaintPropagationHandler{
 		    Abstraction temp; //temp object for loop access
 		    acspathOUT=null; //initialize strings
 		    srcctxtOUT=null;
+		    int abshashOUT=0; //as above 0 for either hash value indicates the corresp object was null
+		    int acspathhashOUT=0;
 		    
 
 		    //loop over all Abstractions in outgoing set
@@ -185,10 +247,23 @@ public class SGPHandler implements TaintPropagationHandler{
 				srcctxtOUT="null";
 			}
 			
-			//Build output string
-			outabs=outabs.concat(acspathOUTtxt+acspathOUT+"\n"+srcctxtOUTtxt+srcctxtOUT+"\n");
+			//Get hash for this Abstraction
+			if(temp!=null){
+				abshashOUT=temp.hashCode();
+			}
 			
-			j++;
+			//Get hash for this AccessPath
+			if(temp.getAccessPath()!=null){
+				acspathhashOUT=temp.getAccessPath().hashCode();
+			}
+			
+			//Build output string
+			outabs=outabs.concat(acspathOUTtxt+acspathOUT+"\n"+srcctxtOUTtxt+srcctxtOUT+"\n"+abshashOUTtxt+abshashOUT+"\n"+acspathhashOUTtxt+acspathhashOUT+"\n");
+			
+			j++; //advance counter
+			abshashOUT=0; //reset hash ints for next iteration
+			acspathhashOUT=0;
+			
 		    }
 		}else{
 			acspathOUT="null";
@@ -198,11 +273,15 @@ public class SGPHandler implements TaintPropagationHandler{
 
 		//Append collected info with description strings
 		String flow = "Flow function type: "+flwfxn+"\n";
+		String accesspathd1 = "AccessPath at start of method (abs d1):"+acspathd1+"\n";
+		String sourcecontextd1="Source Context at start of method (abs d1):"+srcctxtd1+"\n";
 		String accesspathIN = "Incoming AccessPath value: "+acspathIN+"\n";
 		String sourcecontextIN = "Incoming Source Context: "+srcctxtIN+"\n";
+		String acspathhashINtxt = "Incoming AccessPath Hash: "+acspathhashIN+"\n";
+		String abshashINtxt = "Incoming Abstraction hash: "+abshashIN+"\n";
 		
 		//Send full output string to log
-		this.log(handler+flow+inabs+accesspathIN+sourcecontextIN+outabs+"\n");
+		this.log(handler+flow+inabs+accesspathd1+sourcecontextd1+accesspathIN+sourcecontextIN+abshashINtxt+acspathhashINtxt+outabs+"\n");
 		
 		return outgoing; //pass on outgoing abstraction set without altering
 	}

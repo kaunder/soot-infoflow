@@ -25,7 +25,7 @@ public interface TaintPropagationHandler {
 	}
 
 	/**
-	 * Handler function that is invoked when a taint is proagated in the data
+	 * Handler function that is invoked when a taint is propagated in the data
 	 * flow engine
 	 * @param stmt The statement over which the taint is propagated
 	 * @param taint The taint being propagated

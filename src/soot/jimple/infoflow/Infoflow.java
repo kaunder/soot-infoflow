@@ -763,6 +763,7 @@ public class Infoflow extends AbstractInfoflow {
 	 */
 	public void setTaintPropagationHandler(TaintPropagationHandler handler) {
 		this.taintPropagationHandler = handler;
+		System.out.println("***DEBUG: In Infoflow.setTaintPropagationHandler");
 	}
 	
 	/**

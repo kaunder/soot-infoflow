@@ -1,0 +1,80 @@
+/*******************************************************************************
+ * Katie Underwood 2015
+ * Handler function to be passed to Infoflow.setTaintPropagationHandler
+ * 
+ * 
+ ******************************************************************************/
+package soot.jimple.infoflow.sgp;
+
+import java.util.Set;
+
+import soot.Unit;
+import soot.jimple.infoflow.data.Abstraction;
+import soot.jimple.infoflow.handlers.TaintPropagationHandler;
+import soot.jimple.infoflow.solver.cfg.IInfoflowCFG;
+import soot.jimple.infoflow.sgp.*;
+
+public class SGPHandler implements TaintPropagationHandler{
+
+    //Declare sgpData object which will be used to capture required metadata
+    SGPData sgpData;
+    
+    //File I/O objects
+    FileOutputStream fout;
+    FileWriter foutWriter;
+    String filename;
+	
+	//Default constructor
+	public SGPHandler(){
+		//Instantiate the SGPData object
+		sgpData = new SGPData();
+
+		//Instantiate file i/o objects
+
+		filename="sgpOutputFile.txt";//for now use default name
+		
+		try{
+		    fout = new FileOutputStream(filename);
+		}catch(FileNotFoundException e){
+		    System.out.println("Could not open file "+filename+" for writing");
+		}
+
+		foutWriter = new FileWriter(fout);
+	}
+	
+	@Override
+	public void notifyFlowIn(Unit stmt, Abstraction taint, IInfoflowCFG cfg,
+			FlowFunctionType type) {
+		// TODO Auto-generated method stub
+		System.out.println("I am calling from notifyFlowIn, a taint is being propagated!");
+		this.log("I am calling from notifyFlowIn, a taint is being propagated! ");
+		
+	}
+
+	@Override
+	public Set<Abstraction> notifyFlowOut(Unit stmt, Abstraction d1,
+			Abstraction incoming, Set<Abstraction> outgoing, IInfoflowCFG cfg,
+			FlowFunctionType type) {
+		// TODO Auto-generated method stub
+		System.out.println("I am calling from notifyFlowOut, a new taint has been created!");
+		this.log("I am calling from notifyFlowOut, a new taint has been created! ");
+		return outgoing; //IS THIS CORRECT?
+	}
+
+    /*Write to the log file*/
+    private void log(String str){
+	synchronized(foutWriter){
+	    foutWriter.write(str);
+	}
+    }
+
+    /*Close the open file stream*/
+    public void closeFile(){
+	try{
+	    fout.close();
+	}catch(IOException e){
+	    System.out.println("Error: coult not close "+filename);
+	}
+    }
+    
+}

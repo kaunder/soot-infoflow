@@ -89,7 +89,8 @@ public class SGPData {
 
     /*Function to be provided as callback to Infoflow.setTaintPropagationHandler*/
     //DO YOU WANT THIS TO BE STATIC????? Maybe??
-    public int sgpHandler(){
+    //TODO: Get rid of this! It is implemented in a separate class as SGPHandler	
+    public int sgpHandler(String wut){
 
 	//Every time this function is called, it should write to a file
 	//Therefore that file must already be set up
@@ -102,13 +103,22 @@ public class SGPData {
 
 	//Now - just write to the file every time you get invoked
 
-	foutWriter.println("I am the sgpHandler, I've been called! This is call "+i);
+	foutWriter.println("This is call "+i);
 
 	//Increment global counter
 	i++;
 	
 	return 1; //"this cannot have void return type" according to compiler??
 	
+    }
+    
+    
+    /*FOR TESTING ONLY*/
+    public void handlerHello(String wut){
+    	foutWriter.print(wut+" || ");
+    	foutWriter.println("This is call"+i);
+    	i++;
+    	
     }
 
     /*Set up the output file and associated printwriter*/
@@ -136,9 +146,9 @@ public class SGPData {
 
 	//Close filestream
     	try{
-	    fout.close();
+    		fout.close();
     	}catch(IOException e){
-	    System.out.println("Error: Could not close file!");
+    		System.out.println("Error: Could not close file!");
     	}
 
 	return;
